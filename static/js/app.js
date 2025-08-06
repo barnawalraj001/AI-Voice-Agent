@@ -25,7 +25,7 @@
 // Connect the server with a WebSocket connection
 const sessionId = Math.random().toString().substring(10);
 const ws_url =
-  "ws://" + window.location.host + "/ws/" + sessionId;
+  (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host + "/ws/" + sessionId;
 let websocket = null;
 let is_audio = false;
 

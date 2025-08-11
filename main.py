@@ -161,6 +161,25 @@ async def client_to_agent_messaging(websocket, live_request_queue):
             raise ValueError(f"Mime type not supported: {mime_type}")
 
 
+async def handle_media_stream(websocket, live_events, live_request_queue):
+    """Handle bidirectional media streaming for external clients"""
+    try:
+        await websocket.accept()
+        logging.info("Media stream connection established")
+        
+        # Start agent to client messaging
+        agent_task = asyncio.create_task(agent_to_client_messaging(websocket, live_events))
+        client_task = asyncio.create_task(client_to_agent_messaging(websocket, live_request_queue))
+        
+        # Wait for either task to complete
+        await asyncio.wait([agent_task, client_task], return_when=asyncio.FIRST_EXCEPTION)
+        
+    except Exception as e:
+        logging.error(f"Error in media stream handler: {e}")
+    finally:
+        logging.info("Media stream connection closed")
+
+
 #
 # FastAPI web app
 #
@@ -205,3 +224,26 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str, is_audio: str):
 
     # Disconnected
     logging.info(f"Client #{user_id} disconnected")
+
+
+@app.websocket("/media-stream")
+async def media_stream_endpoint(websocket: WebSocket):
+    """Media Streams endpoint for bidirectional audio streaming"""
+    
+    # Generate a unique user ID for this call
+    import uuid
+    call_id = str(uuid.uuid4())
+    
+    logging.info(f"Media stream call #{call_id} connecting...")
+
+    # Start agent session with audio enabled
+    live_events, live_request_queue = await start_agent_session(call_id, is_audio=True)
+
+    # Handle the media stream
+    await handle_media_stream(websocket, live_events, live_request_queue)
+
+    # Close LiveRequestQueue
+    live_request_queue.close()
+
+    # Disconnected
+    logging.info(f"Media stream call #{call_id} disconnected")
